@@ -2,6 +2,8 @@
 
 Sign in with Google, tell us your favourite movie, and get a fun fact about it from OpenAI.
 
+**Live demo:** https://movie-memory-seven.vercel.app
+
 **Stack:** Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Neon Postgres · Prisma 6 (`pg` driver adapter) · Auth.js v5 (Google) · OpenAI · Vitest
 
 ---
@@ -25,12 +27,15 @@ Prerequisites: Node 20+, a Postgres database, a Google OAuth client, and an Open
 
 ```bash
 npm install                 # also runs `prisma generate`
-cp .env.example .env        # then fill in the Auth + OpenAI values (see below)
-npm i -g neon && neon login # Neon CLI; the project is already linked by neon.ts + .neon
-neon deploy                 # provisions the branch and pulls DATABASE_URL(_UNPOOLED) into .env
-npm run db:deploy           # applies prisma/migrations over the direct URL
+cp .env.example .env        # then fill it in (see Environment variables below)
+npm run db:deploy           # creates the tables (applies prisma/migrations)
 npm run dev                 # http://localhost:3000
 ```
+
+**Getting a database**, either one:
+
+- **Neon (free, what the live demo uses):** create a project at [neon.tech](https://neon.tech). Put the pooled connection string in `DATABASE_URL` and the direct one in `DATABASE_URL_UNPOOLED`. With the Neon CLI, `neon env pull` writes both for you.
+- **Local Docker:** `docker compose up -d`, then set both variables to `postgresql://postgres:postgres@localhost:5432/movie_memory`.
 
 ### Environment variables
 
@@ -242,21 +247,17 @@ The service is tested through an in-memory repo with the same lease semantics as
 
 ---
 
-## Deploying for free
+## Deploying
 
-**GitHub Pages won't work.** It only serves static files. This app needs a server for the OAuth callback, server actions, API routes, the database connection and secrets such as the OpenAI key.
+The live demo runs on **Vercel (Hobby) + Neon (free Postgres)**. GitHub Pages can't host it: it only serves static files, and this app needs a server for the OAuth callback, server actions, API routes, the database and secrets.
 
-The free path is **Vercel (Hobby) + Neon (free Postgres)**:
-
-1. **Database:** already provisioned on Neon (`neon deploy`). Migrations are applied with `npm run db:deploy`.
-2. **Get the production URLs:** they're in `.env` after `neon env pull`.
-3. **Push to GitHub, then import the repo at [vercel.com/new](https://vercel.com/new).** Next.js is auto-detected.
-4. **Add the environment variables** in Vercel → Settings → Environment Variables: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `OPENAI_API_KEY`.
-5. **Google Cloud Console → your OAuth client:**
+1. **Database:** create it on Neon and run `npm run db:deploy` against it once.
+2. **Create the Vercel project:** either import the GitHub repo at [vercel.com/new](https://vercel.com/new) (deploys on every push), or use the CLI: `vercel link`, then `vercel deploy --prod`.
+3. **Environment variables** (Vercel → Settings → Environment Variables, or `vercel env add`): `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `OPENAI_API_KEY`. `AUTH_TRUST_HOST` isn't needed on Vercel.
+4. **Google Cloud Console → your OAuth client:**
    - Add `https://<your-app>.vercel.app` to *Authorised JavaScript origins*.
-   - Add `https://<your-app>.vercel.app/api/auth/callback/google` to *Authorised redirect URIs*.
+   - Add `https://<your-app>.vercel.app/api/auth/callback/google` to *Authorised redirect URIs*. Changes can take a few minutes to apply.
    - If the consent screen is in "Testing" mode, add your users as test users, or publish it.
-6. **Deploy.** Optionally set the Vercel build command to `prisma migrate deploy && next build` so migrations run on every deploy.
 
 OpenAI is pay-as-you-go: each fact costs a fraction of a cent with `gpt-4o-mini`.
 
