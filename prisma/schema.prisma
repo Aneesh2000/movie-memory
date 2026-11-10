@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // Neon pooled (-pooler) URL, used by the app
+  directUrl = env("DATABASE_URL_UNPOOLED") // Neon direct URL, used by Prisma Migrate
+}
+
+// ---------------------------------------------------------------------------
+// Application models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  // Google can omit name and picture, so both are nullable and the UI falls back.
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // null means onboarding is not finished. Using the data itself (not a
+  // "first login" flag) means a user who abandons onboarding is sent back to it.
+  favoriteMovie String? @db.VarChar(120)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  facts       Fact[]
+  factGenLock FactGenerationLock?
+}
+
+/// One generated fun fact. Facts are append-only history.
+model Fact {
+  id      String @id @default(cuid())
+  userId  String
+  /// Snapshot of the title the fact is about. The cache key is (userId, movie),
+  /// so changing the favourite movie naturally stops old facts from matching.
+  movie   String @db.VarChar(120)
+  content String @db.Text
+
+  /// Set explicitly by the app clock so freshness checks compare like with like.
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Serves the hot query: "latest fact for this user + movie" as one index seek.
+  @@index([userId, movie, createdAt(sort: Desc)])
+}
+
+/// Burst protection: a per-user lease meaning "a fact is being
+/// generated right now". Acquired with one atomic upsert; expires on its own so
+/// a crashed request can never block a user forever.
+model FactGenerationLock {
+  userId      String   @id
+  /// Random per-request token so a request only ever releases its own lease.
+  token       String
+  lockedUntil DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (Prisma adapter) models
+// ---------------------------------------------------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

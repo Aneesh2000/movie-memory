@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Don't generate AGENTS.md (AI-agent hints) on `next dev`.
+  agentRules: false,
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
