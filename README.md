@@ -8,6 +8,21 @@ Sign in with Google, tell us your favourite movie, and get a fun fact about it f
 
 ---
 
+## Variant chosen: A (backend caching and correctness)
+
+**I chose Variant A.** The hard part of this app is the fact endpoint: it's the only thing that costs money (OpenAI) and the only thing exposed to concurrency (refreshes, several tabs). Those bugs don't show up in a normal click-through: duplicate generations, a lock that never releases, one user seeing another's fact. So that's where careful design pays off most. A Postgres lease also lets me reason about correctness across serverless instances, which an in-memory approach can't.
+
+What Variant A covers here:
+
+- **60-second cache window** per user + movie: `lib/facts/service.ts`
+- **Burst protection** with a "generation in progress" lease in Postgres, taken in one atomic SQL statement: `lib/facts/prisma-repo.ts`
+- **Failure handling:** if OpenAI fails, the last fact is returned, otherwise a friendly 503
+- **Tests** for the cache window and for authorization (one user can't fetch another's facts): `tests/fact-service.test.ts`, `tests/api-routes.test.ts`
+
+**I also implemented Variant B**, because the client needed solid behaviour around the same endpoint anyway: a typed API layer (`GET /api/me`, `PUT /api/me/movie`, `GET /api/fact`) with a typed client in `lib/api.ts`, inline movie editing with an optimistic update and revert on failure, a 30-second client cache, and tests for the API client and the edit flow. Variant A is the primary submission; Variant B sits on top of it without changing its guarantees. The table below shows how the two layers fit together.
+
+---
+
 ## How it fits together
 
 Fact handling has two layers that complement each other rather than overlap:
