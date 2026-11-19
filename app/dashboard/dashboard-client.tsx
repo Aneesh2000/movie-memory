@@ -15,7 +15,7 @@ export function DashboardClient({ userId, initialMovie }: { userId: string; init
   return (
     <>
       <Card className="space-y-2">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-stone-500">Favourite movie</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-stone-500">Favourite movie !</h2>
         <MovieEditor initialMovie={initialMovie} onSaved={setConfirmedMovie} />
       </Card>
       <FactPanel userId={userId} movie={confirmedMovie} />
